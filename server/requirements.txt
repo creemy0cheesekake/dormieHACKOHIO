@@ -1,0 +1,8 @@
+fastapi
+pydantic
+ai4free
+Helpingai-T2-fork
+click
+g4f
+selenium
+sse-starlette
