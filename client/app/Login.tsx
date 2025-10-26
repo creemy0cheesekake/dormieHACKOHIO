@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login, register } from "../firebaseAuth";
-import { StyleSheet, Text, TextInput, View, Image, Button, Dimensions } from "react-native";
+import { StyleSheet, Text, TextInput, View, Image, Button, Dimensions, ImageBackground } from "react-native";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
@@ -20,6 +20,7 @@ const Colors = {
 
 const { height } = Dimensions.get("window");
 const DORMIE_LOGO = require("../assets/Dormie.png");
+const BACKGROUND_IMAGE = require("../assets/background.png");
 
 type IconProps = {
 	name: "User" | "Lock" | "Name";
@@ -68,69 +69,80 @@ export default function Login() {
 	};
 
 	return (
-		<SafeAreaView style={styles.safeArea}>
-			<View style={styles.content}>
-				<Image source={DORMIE_LOGO} style={styles.logo} resizeMode="contain" />
-				<Text style={styles.title}>{isSignUp ? "Create Account" : "Log In"}</Text>
+		<ImageBackground source={BACKGROUND_IMAGE} style={styles.background} resizeMode="cover">
+			<SafeAreaView style={styles.safeArea}>
+				<View style={styles.content}>
+					<Image source={DORMIE_LOGO} style={styles.logo} resizeMode="contain" />
+					<Text style={styles.title}>{isSignUp ? "Create Account" : "Log In"}</Text>
 
-				{isSignUp && (
+					{isSignUp && (
+						<View style={styles.inputContainer}>
+							<Icon name="Name" />
+							<TextInput
+								placeholder="Full Name"
+								value={name}
+								onChangeText={setName}
+								style={styles.input}
+								placeholderTextColor={Colors.textSecondary}
+							/>
+						</View>
+					)}
+
 					<View style={styles.inputContainer}>
-						<Icon name="Name" />
+						<Icon name="User" />
 						<TextInput
-							placeholder="Full Name"
-							value={name}
-							onChangeText={setName}
+							placeholder="Email"
+							value={email}
+							onChangeText={setEmail}
+							autoCapitalize="none"
 							style={styles.input}
 							placeholderTextColor={Colors.textSecondary}
 						/>
 					</View>
-				)}
 
-				<View style={styles.inputContainer}>
-					<Icon name="User" />
-					<TextInput
-						placeholder="Email"
-						value={email}
-						onChangeText={setEmail}
-						autoCapitalize="none"
-						style={styles.input}
-						placeholderTextColor={Colors.textSecondary}
-					/>
+					<View style={styles.inputContainer}>
+						<Icon name="Lock" />
+						<TextInput
+							placeholder="Password"
+							value={password}
+							onChangeText={setPassword}
+							secureTextEntry
+							style={styles.input}
+							placeholderTextColor={Colors.textSecondary}
+						/>
+					</View>
+
+					<View style={styles.buttonWrapper}>
+						<Button
+							title={isSignUp ? "Create Account" : "Login"}
+							onPress={handleAuth}
+							color={Colors.primary}
+						/>
+					</View>
+
+					<Text
+						onPress={() => {
+							setIsSignUp(!isSignUp);
+							setError("");
+						}}
+						style={styles.toggleLinkText}
+					>
+						{isSignUp ? "Already have an account? Log in" : "No account? Sign up"}
+					</Text>
+
+					{error ? <Text style={styles.errorText}>{error}</Text> : null}
 				</View>
-
-				<View style={styles.inputContainer}>
-					<Icon name="Lock" />
-					<TextInput
-						placeholder="Password"
-						value={password}
-						onChangeText={setPassword}
-						secureTextEntry
-						style={styles.input}
-						placeholderTextColor={Colors.textSecondary}
-					/>
-				</View>
-
-				<View style={styles.buttonWrapper}>
-					<Button title={isSignUp ? "Create Account" : "Login"} onPress={handleAuth} color={Colors.primary} />
-				</View>
-
-				<Text
-					onPress={() => {
-						setIsSignUp(!isSignUp);
-						setError("");
-					}}
-					style={styles.toggleLinkText}
-				>
-					{isSignUp ? "Already have an account? Log in" : "No account? Sign up"}
-				</Text>
-
-				{error ? <Text style={styles.errorText}>{error}</Text> : null}
-			</View>
-		</SafeAreaView>
+			</SafeAreaView>
+		</ImageBackground>
 	);
 }
 
 const styles = StyleSheet.create({
+	background: {
+		flex: 1,
+		width: "100%",
+		height: "100%",
+	},
 	safeArea: {
 		flex: 1,
 		paddingHorizontal: 24,
@@ -140,6 +152,13 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		width: "100%",
 		padding: 20,
+		backgroundColor: "rgba(255,255,255,0.85)",
+		borderRadius: 20,
+		elevation: 8,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.15,
+		shadowRadius: 12,
 	},
 	logo: {
 		width: 250,
