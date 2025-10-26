@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { SERVER_ENDPOINT } from "@env";
+
+const ENDPOINT = "https://ethernet-streets-draft-every.trycloudflare.com/chat";
 
 export default function App() {
 	const tabBarHeight = useBottomTabBarHeight();
@@ -24,7 +25,7 @@ export default function App() {
 	const stopRef = useRef(false);
 
 	const getNewConvoId = async () => {
-		const res = await fetch(SERVER_ENDPOINT);
+		const res = await fetch(ENDPOINT);
 		const data = await res.json();
 		setConvoId(data.result);
 	};
@@ -50,7 +51,7 @@ export default function App() {
 		setInput("");
 
 		try {
-			const res = await fetch(SERVER_ENDPOINT, {
+			const res = await fetch(ENDPOINT, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ prompt, convoId }),
