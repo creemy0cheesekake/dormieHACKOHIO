@@ -174,9 +174,12 @@ export default function App() {
 	}, [room?.id, currentUser]);
 
 	const getNewConvoId = async () => {
+		//magic fucking voodoo. This print statement prevents a fatal error because js is the dumbest fucking language ever
+		console.log("fetching new convo...");
 		const res = await fetch(SERVER_ENDPOINT + "/chat");
 		const data = await res.json();
 		setConvoId(data.result);
+		console.log(convoId);
 	};
 
 	const resetChat = () => {
