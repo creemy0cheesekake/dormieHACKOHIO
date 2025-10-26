@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 // import { ScrollView, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert } from "react-native";
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -249,6 +249,7 @@ export default function TodoTab() {
 	}, [members]);
 
 	useEffect(() => {
+		if (phase === "assigned") return;
 		if (!roomId) return;
 		const allRankers = Object.keys(rankingsMap || {});
 		if (memberData.length > 0 && allRankers.length === memberData.length) {
@@ -277,21 +278,50 @@ export default function TodoTab() {
 			console.log(`People: ${peopleStr}`);
 			console.log(`Chores: ${choresStr}`);
 			console.log("=== END ===");
-
 			(async () => {
-				const res = await fetch(SERVER_ENDPOINT + "/chore", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ peopleStr, choresStr }),
-				});
-				const data = await res.json();
+				if (phase === "assigned") return;
+				console.log("\n\n\n\nskib\n\n\n\n");
 				try {
-					const aiDistribution = JSON.parse(data.result);
+					const res = await fetch(SERVER_ENDPOINT + "/chore", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ peopleStr, choresStr }),
+					});
+					const data = await res.json();
+
+					let aiDistribution;
+					try {
+						if (data.result.trim().startsWith("```")) {
+							let cleaned = data.result
+								.trim()
+								.replace(/```json\s*|```/g, "")
+								.trim();
+							aiDistribution = JSON.parse(cleaned);
+						} else {
+							aiDistribution = JSON.parse(data.result.trim());
+						}
+						// console.log("distro2:", aiDistribution);
+					} catch (err) {
+						console.log("Parse error:", err);
+						console.log("Raw result:", data.result);
+						// alert("AI Error");
+						return;
+					}
+
 					console.log("\n----\n", aiDistribution, "\n----");
-				} catch (err) {
-					console.log(err);
-					console.log(data.result);
-					alert("AI Error");
+
+					// chorePhase + database logic preserved
+
+					for (const [choreId, userId] of Object.entries(aiDistribution)) {
+						console.log(roomId, choreId, userId);
+						const choreRef = doc(db, "rooms", roomId, "chores", choreId);
+						await setDoc(choreRef, { assignee: userId }, { merge: true });
+						const roomRef = doc(db, "rooms", roomId);
+						await updateDoc(roomRef, { chorePhase: "assigned" });
+					}
+					console.log("Chore assignments saved.");
+				} catch (error) {
+					console.log("Network or Firestore error:", error);
 				}
 			})();
 		}
@@ -352,8 +382,8 @@ export default function TodoTab() {
 							phase === "open"
 								? choreStyles.openBadge
 								: phase === "confirm"
-									? choreStyles.confirmBadge
-									: choreStyles.rankingBadge,
+								? choreStyles.confirmBadge
+								: choreStyles.rankingBadge,
 						]}
 					>
 						<Text style={choreStyles.phaseBadgeText}>
