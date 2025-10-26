@@ -282,6 +282,7 @@ export default function TodoTab() {
 				if (phase === "assigned") return;
 				console.log("\n\n\n\nskib\n\n\n\n");
 				try {
+					console.log("\n\n\n\nskib2\n\n\n\n");
 					const res = await fetch(SERVER_ENDPOINT + "/chore", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
