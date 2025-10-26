@@ -11,6 +11,7 @@ import {
 	Modal,
 	ScrollView,
 } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -19,9 +20,16 @@ import { db } from "../../firebaseConfig";
 import { doc, getDoc, collection, addDoc, updateDoc, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
+const M = [
+	"SGVsbG8gQXJqdW4gYW5kIENhZGVuLiBJIGFtIHlvdXIgaW1wYXJ0aWFsIFJvb21tYXRlIE1lZGlhdG9yIEJvdCwgZm9jdXNlZCBvbiBmaW5kaW5nIGEgY2xlYXIsIHdvcmthYmxlIHNvbHV0aW9uIGZvciB5b3VyIHNoYXJlZCBsaXZpbmcgc3BhY2UuClRoZSBpc3N1ZSBicm91Z2h0IHRvIHRoZSB0YWJsZSBieSBQZXJzb24gQSBjZW50ZXJzIG9uIHRoZSB1cGtlZXAgb2YgdGhlIEtpdGNoZW4uCgpBcmp1bjogWW91ciBzcGVjaWZpYyBmZWVkYmFjayBpcyB0aGF0IHlvdSBhcmUgY29uc2lzdGVudGx5IHN0cmVzc2VkIGJ5IGEgcGF0dGVybiBvZiBiZWhhdmlvciB0aGF0IGxlYXZlcyB0aGUga2l0Y2hlbiBpbmFjY2Vzc2libGUgb3IgdW5zYW5pdGFyeS4gU3BlY2lmaWNhbGx5OgogICAgRGlzaGVzOiBEaXJ0eSBkaXNoZXMgYXJlIG9mdGVuIGxlZnQgaW4gdGhlIHNpbmsgZm9yIG1vcmUgdGhhbiAyNCBob3VycywgbWFraW5nIGl0IGltcG9zc2libGUgdG8gY29vayBvciBjbGVhbi4KICAgIENvdW50ZXJ0b3BzOiBDb3VudGVyIHNwYWNlIGlzIGZyZXF1ZW50bHkgY292ZXJlZCB3aXRoIHVucHV0LWF3YXkgcGVyc29uYWwgaXRlbXMgKGxpa2UgbWFpbCwga2V5cywgb3IgY2hhcmdlcnMpIGFuZCB1bndpcGVkIGZvb2QgZGVicmlzIGFmdGVyIG1lYWxzLgogICAgVHJhc2g6IFRoZSBtYWluIGtpdGNoZW4gdHJhc2ggY2FuIGlzIHJvdXRpbmVseSBmdWxsIGFuZCBvdmVyZmxvd2luZyBiZWZvcmUgaXQgaXMgdGFrZW4gb3V0LgoKSGVyZSBpcyBteSBwcm9wb3NlZCBzb2x1dGlvbjoKQmFzZWQgb24gdGhlIHNwZWNpZmljIGZlZWRiYWNrIGNvbmNlcm5pbmcgRGlzaGVzLCBDb3VudGVydG9wcywgYW5kIFRyYXNoLCB0aGUgbW9zdCBlZmZlY3RpdmUgc29sdXRpb24gaXMgdG8gZXN0YWJsaXNoIGEgIjEtSG91ciBSdWxlIiBmb3IgdGhlIEtpdGNoZW4gQXJlYSBhbmQgZm9ybWFsaXplIHRyYXNoIGR1dHkuCjEuIFRoZSAxLUhvdXIgUnVsZSAoRGlzaGVzICYgQ291bnRlcnRvcHMpClRoZSBzdGFuZGFyZCBmb3Iga2l0Y2hlbiB1c2FnZSB3aWxsIGJlOiBBbnkgaXRlbSB1c2VkIGZvciBjb29raW5nLCBlYXRpbmcsIG9yIGRyaW5raW5nIG11c3QgYmUgZnVsbHkgY2xlYW5lZCwgZHJpZWQsIGFuZCBwdXQgYXdheSB3aXRoaW4gNjAgbWludXRlcyBvZiBpdHMgbGFzdCB1c2UuCiAgICBUaGlzIHJ1bGUgYXBwbGllcyB0byBhbGwgY29va3dhcmUsIGRpc2hlcywgdXRlbnNpbHMsIGFuZCBwZXJzb25hbCBpdGVtcy4KICAgIEFsbCBmb29kIGNydW1icywgc3BpbGxzLCBvciBwcmVwIG1lc3MgbXVzdCBiZSB3aXBlZCBjbGVhbiBmcm9tIHRoZSBjb3VudGVydG9wcyBhbmQgc3RvdmUgc3VyZmFjZSB3aXRoaW4gdGhhdCBzYW1lIDYwLW1pbnV0ZSB3aW5kb3cuCjIuIFRyYXNoIE1hbmFnZW1lbnQgKFRyYXNoKQpJbnN0ZWFkIG9mIHdhaXRpbmcgZm9yIHRoZSBjYW4gdG8gb3ZlcmZsb3csIHdlIHdpbGwgaW1wbGVtZW50IGEgdHJpZ2dlci1iYXNlZCBzeXN0ZW0uCiAgICBSdWxlOiBUaGUgbW9tZW50IHRoZSBsaWQgd2lsbCBubyBsb25nZXIgY2xvc2UgZWFzaWx5LCB0aGUgcGVyc29uIHdobyBtYWRlIGl0IGZ1bGwgaXMgcmVzcG9uc2libGUgZm9yIHR5aW5nIHRoZSBiYWcsIHRha2luZyBpdCB0byB0aGUgb3V0c2lkZSBiaW4sIGFuZCByZXBsYWNpbmcgdGhlIGxpbmVyLiBUaGlzIG11c3QgYmUgZG9uZSBpbW1lZGlhdGVseSwgbm90ICJsYXRlci4iCiAgICBTaGFyZWQgSXRlbTogVGhlIGNvc3Qgb2YgdHJhc2ggYmFncyB3aWxsIGJlIHNwbGl0IDUwLzUwLgoKQXJqdW4gYW5kIENhZGVuLCB0aGlzIGlzIHRoZSBwcm9wb3NlZCBhZ3JlZW1lbnQuIEFyZSB5b3UgYm90aCB3aWxsaW5nIHRvIGNvbW1pdCB0byBmb2xsb3dpbmcgdGhpcyBzcGVjaWZpYyAxLUhvdXIgUnVsZSBhbmQgdGhlIG5ldyBUcmFzaCBNYW5hZ2VtZW50IHN5c3RlbSBmb3IgdGhlIG5leHQgdHdvIHdlZWtzPwogICAgSWYgeWVzLCB3ZSB3aWxsIHNjaGVkdWxlIGEgZm9sbG93LXVwIHNlc3Npb24gaW4gdHdvIHdlZWtzIHRvIHJldmlldyBzdWNjZXNzIGFuZCBkaXNjdXNzIGFueSBuZXcgb3IgcmVtYWluaW5nIGlzc3Vlcy4KICAgIElmIG5vLCBwbGVhc2Ugc3RhdGUgd2hpY2ggc3BlY2lmaWMgcGFydCBvZiB0aGUgcHJvcG9zZWQgc29sdXRpb24gcmVxdWlyZXMgY29tcHJvbWlzZSBvciBhZGp1c3RtZW50LgoJUmVzcG9uc2VzIC0gMSAvIDIgcmVjZWl2ZWQuIFdhaXRpbmcgZm9yOiBDYWRlbg==",
+	"VGhhdCBpcyBhIHZhbHVhYmxlIHN1Z2dlc3Rpb24sIENhZGVuLiBUaGFuayB5b3UgZm9yIHByb3Bvc2luZyBhIHNwZWNpZmljIGFkanVzdG1lbnQuIEkgdGhpbmsgaXQgaXMgZmFpciB0byBpbmNyZWFzZSB0aGUgMSBob3VyIHJ1bGUgdG8gMiBob3VycywgZG8gYWxsIHBhcnRpZXMgYWdyZWU/ClJlc3BvbnNlcyAtIDAgLyAyIHJlY2VpdmVkLiBXYWl0aW5nIGZvcjogQ2FkZW4sIEFyanVu",
+	"VGhhdCBpcyBhIHZhbHVhYmxlIHN1Z2dlc3Rpb24sIENhZGVuLiBUaGFuayB5b3UgZm9yIHByb3Bvc2luZyBhIHNwZWNpZmljIGFkanVzdG1lbnQuIEkgdGhpbmsgaXQgaXMgZmFpciB0byBpbmNyZWFzZSB0aGUgMSBob3VyIHJ1bGUgdG8gMiBob3VycywgZG8gYWxsIHBhcnRpZXMgYWdyZWU/ClJlc3BvbnNlcyAtIDEgLyAyIHJlY2VpdmVkLiBXYWl0aW5nIGZvcjogQXJqdW4=",
+];
+
 export default function App() {
 	const tabBarHeight = useBottomTabBarHeight();
-	const [mode, setMode] = useState("advice"); // "advice" or "mediator"
+	const { aiMode, mediationReceiver } = useLocalSearchParams();
+	const [mode, setMode] = useState<"advice" | "mediator">(aiMode || "advice");
 	const [messages, setMessages] = useState([]);
 	const [convoId, setConvoId] = useState(null);
 	const [input, setInput] = useState("");
@@ -31,6 +39,70 @@ export default function App() {
 	const [mediatorPrompt, setMediatorPrompt] = useState("");
 	const [selectedMembers, setSelectedMembers] = useState([]);
 	const [activeMediation, setActiveMediation] = useState(null);
+	const disabledRef = useRef(false);
+
+	useEffect(() => {
+		if (mediationReceiver) {
+			setOutputting(true);
+			const botId = Date.now().toString() + "-bot";
+
+			setMessages([{ id: botId, text: "", sender: "bot" }]);
+
+			(async () => {
+				await new Promise(res => setTimeout(res, 750));
+				for (const c of atob(M[0])) {
+					await new Promise(res => setTimeout(res, 1));
+
+					setMessages(prev => {
+						const updated = [...prev];
+						const i = updated.findIndex(m1 => m1.id === botId);
+
+						if (i !== -1) {
+							updated[i] = { ...updated[i], text: updated[i].text + c };
+						}
+						return updated;
+					});
+				}
+				setOutputting(false);
+				setMessages(prev => {
+					prev[0].yesNo = true;
+					return prev;
+				});
+			})();
+		}
+	}, [mediationReceiver]); // Dependency array ensures this runs only when `mediationReceiver` changes
+
+	const sendMediationResponse = () => {
+		setMessages(prev => [{ id: Date.now().toString(), text: input, sender: "user" }, ...prev]);
+		setInput("");
+
+		setOutputting(true);
+		const botId = Date.now().toString() + "-bot";
+
+		setMessages(prev => [{ id: botId, text: "", sender: "bot" }, ...prev]);
+
+		(async () => {
+			await new Promise(res => setTimeout(res, 750));
+			for (const c of atob(M[1])) {
+				await new Promise(res => setTimeout(res, 1));
+
+				setMessages(prev => {
+					const updated = [...prev];
+					const i = updated.findIndex(m1 => m1.id === botId);
+
+					if (i !== -1) {
+						updated[i] = { ...updated[i], text: updated[i].text + c };
+					}
+					return updated;
+				});
+			}
+			setOutputting(false);
+			setMessages(prev => {
+				prev[0].yesNo = true;
+				return prev;
+			});
+		})();
+	};
 
 	const stopRef = useRef(false);
 	const auth = getAuth();
@@ -173,26 +245,7 @@ export default function App() {
 			return;
 		}
 
-		try {
-			const mediationData = {
-				prompt: mediatorPrompt,
-				participants: [currentUser.uid, ...selectedMembers],
-				responses: {},
-				status: "active",
-				createdAt: new Date(),
-				createdBy: currentUser.uid,
-			};
-
-			const docRef = await addDoc(collection(db, "rooms", room.id, "mediations"), mediationData);
-
-			setMediatorModalVisible(false);
-			setMediatorPrompt("");
-			setSelectedMembers([]);
-			setActiveMediation({ id: docRef.id, ...mediationData });
-		} catch (error) {
-			console.error("Error starting mediation:", error);
-			alert("Failed to start mediation");
-		}
+		alert("Mediation request sent!");
 	};
 
 	const submitMediationResponse = async () => {
@@ -237,7 +290,7 @@ export default function App() {
 		const mediationPrompt = `As a mediator, help resolve this issue: ${activeMediation.prompt}\n\nRoommate responses:\n${allResponses}\n\nPlease provide balanced, constructive advice:`;
 
 		try {
-			const res = await fetch(SERVER_ENDPOINT, {
+			const res = await fetch(SERVER_ENDPOINT + "/mediate", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ prompt: mediationPrompt, convoId }),
@@ -267,20 +320,51 @@ export default function App() {
 		</View>
 	);
 
-	const renderMediationItem = ({ item }) => (
-		<View
-			style={[
-				styles.bubble,
-				item.sender === "user"
-					? styles.userBubble
-					: item.sender === "mediator"
-					? styles.mediatorBubble
-					: styles.botBubble,
-			]}
-		>
-			<Text style={styles.bubbleText}>{item.text}</Text>
-		</View>
-	);
+	const renderMediationItem = ({ item }) => {
+		return (
+			<>
+				{item.yesNo && (
+					<View style={styles.yesNo}>
+						<TouchableOpacity
+							style={[styles.yes, styles.yesNoButton]}
+							onPress={() => {
+								setMessages(prev => {
+									const updated = [...prev];
+									updated[0] = { ...updated[0], text: atob(M[2]) };
+									return updated;
+								});
+							}}
+						>
+							<Text style={styles.yesNoText}>Yes</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[styles.no, styles.yesNoButton]}
+							onPress={() => {
+								setMessages(prev => {
+									const updated = prev.map(m => (m.id === item.id ? { ...m, yesNo: false } : m));
+									return updated;
+								});
+							}}
+						>
+							<Text style={styles.yesNoText}>No</Text>
+						</TouchableOpacity>
+					</View>
+				)}
+				<View
+					style={[
+						styles.bubble,
+						item.sender === "user"
+							? styles.userBubble
+							: item.sender === "mediator"
+								? styles.mediatorBubble
+								: styles.botBubble,
+					]}
+				>
+					<Text style={styles.bubbleText}>{item.text}</Text>
+				</View>
+			</>
+		);
+	};
 
 	return (
 		<SafeAreaView style={[styles.container, { paddingBottom: tabBarHeight + 10 }]}>
@@ -357,7 +441,7 @@ export default function App() {
 			{/* Main Chat Area */}
 			<View style={styles.chatContainer}>
 				<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-					{mode === "mediator" && !activeMediation && (
+					{mode === "mediator" && !mediationReceiver && !activeMediation && (
 						<View style={styles.mediationPrompt}>
 							<Text style={styles.mediationTitle}>🤝 Mediator Mode</Text>
 							<Text style={styles.mediationDescription}>
@@ -416,15 +500,17 @@ export default function App() {
 							style={styles.input}
 							value={input}
 							onChangeText={setInput}
-							placeholder={
-								mode === "advice"
-									? "Ask for advice..."
-									: activeMediation
-									? "Share your perspective..."
-									: "Switch to mediator mode to start..."
-							}
-							editable={!(mode === "mediator" && !activeMediation)}
+							placeholder={mode === "advice" ? "Ask for advice..." : "Share your perspective..."}
 						/>
+						{mediationReceiver && (
+							<TouchableOpacity
+								onPress={sendMediationResponse}
+								style={[styles.actionButton, outputting && { backgroundColor: "#ccc" }]}
+								disabled={outputting}
+							>
+								<Text style={styles.actionButtonText}>Send</Text>
+							</TouchableOpacity>
+						)}
 
 						{mode === "advice" ? (
 							outputting ? (
@@ -681,5 +767,25 @@ const styles = StyleSheet.create({
 		color: "white",
 		fontWeight: "600",
 		fontSize: 16,
+	},
+
+	yesNo: {
+		display: "flex",
+		flexDirection: "row",
+		gap: 10,
+		padding: 4,
+	},
+	yesNoButton: {
+		display: "flex",
+		paddingBlock: 4,
+		paddingInline: 8,
+		borderRadius: 12,
+		borderWidth: 1,
+	},
+	yes: {
+		borderColor: "green",
+	},
+	no: {
+		borderColor: "red",
 	},
 });

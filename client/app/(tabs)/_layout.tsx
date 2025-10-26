@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../../firebaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Modal } from "react-native";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 export default function TabLayout() {
 	const router = useRouter();
 	const [loading, setLoading] = useState(true);
+	const [mediatorModalVisible, setMediatorModalVisible] = useState(false);
 
 	useEffect(() => {
 		const checkStoredUser = async () => {

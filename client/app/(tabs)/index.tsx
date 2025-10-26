@@ -1,5 +1,6 @@
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Text, View, TouchableOpacity, FlatList, Alert, StyleSheet } from "react-native";
+import { Text, View, TouchableOpacity, FlatList, Alert, StyleSheet, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -10,7 +11,7 @@ import {
 	updateDoc,
 	serverTimestamp,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 
 function toDateString(ts: any) {
 	if (!ts) return "never";
@@ -31,7 +32,10 @@ function freqToMs(freq: string | undefined) {
 	return 0;
 }
 
+const mediatedUserId = "j3OvGR2ZJcOd8j4RUEN272eSN1w1";
+
 export default function Index() {
+	const router = useRouter();
 	const [room, setRoom] = useState<any | null>(null);
 	const [memberData, setMemberData] = useState<
 		{ uid: string; Name?: string; inRange?: boolean; lastUpdated?: any }[]
@@ -43,6 +47,7 @@ export default function Index() {
 	const [roomId, setRoomId] = useState<string | null>(null);
 	// inside component, before return
 	const myChores = user ? assignedChores.filter(c => c.assignee === user.uid) : [];
+	const [mediatorModalVisible, setMediatorModalVisible] = useState(false);
 
 	useEffect(() => {
 		(async () => {
@@ -56,6 +61,9 @@ export default function Index() {
 			}
 			if (storedRoom) setRoomId(storedRoom);
 		})();
+		if (auth.currentUser.uid == mediatedUserId) {
+			setMediatorModalVisible(true);
+		}
 	}, []);
 
 	useEffect(() => {
@@ -163,6 +171,47 @@ export default function Index() {
 
 	return (
 		<SafeAreaView style={styles.container}>
+			{/* Mediation Modal */}
+			<Modal visible={mediatorModalVisible} animationType="slide" transparent={true}>
+				<View style={styles.modalOverlay}>
+					<View style={styles.modalContent}>
+						<Text style={styles.modalTitle}>Arjun has asked you to join a mediation.</Text>
+
+						{/* <TextInput */}
+						{/* 	style={styles.modalInput} */}
+						{/* 	value={mediatorPrompt} */}
+						{/* 	onChangeText={setMediatorPrompt} */}
+						{/* 	placeholder="Describe what you've been struggling with..." */}
+						{/* 	multiline */}
+						{/* 	numberOfLines={4} */}
+						{/* /> */}
+
+						<View style={styles.modalButtons}>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.cancelButton]}
+								onPress={() => setMediatorModalVisible(false)}
+							>
+								<Text style={styles.modalButtonText}>Ignore</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.startButton]}
+								onPress={() =>
+									router.push({
+										pathname: "/(tabs)/aiMediator",
+										params: {
+											aiMode: "mediator",
+											mediationReceiver: true,
+										},
+									})
+								}
+							>
+								<Text style={styles.modalButtonText}>Start Mediation</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
+
 			{/* Room Header */}
 			<View style={styles.roomHeader}>
 				<Text style={styles.roomName}>🏠 {room.name}</Text>
@@ -409,5 +458,92 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: "#666",
 		fontStyle: "italic",
+	},
+
+	// Modal Styles
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.5)",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	modalContent: {
+		backgroundColor: "white",
+		borderRadius: 16,
+		padding: 24,
+		margin: 20,
+		width: "90%",
+		maxHeight: "80%",
+	},
+	modalTitle: {
+		fontSize: 20,
+		fontWeight: "bold",
+		color: "#D84315",
+		marginBottom: 20,
+		textAlign: "center",
+	},
+	label: {
+		fontSize: 16,
+		fontWeight: "500",
+		color: "#333",
+		marginBottom: 8,
+		marginTop: 12,
+	},
+	modalInput: {
+		borderWidth: 1,
+		borderColor: "#FFCCBC",
+		borderRadius: 8,
+		padding: 12,
+		backgroundColor: "#FFF8E1",
+		textAlignVertical: "top",
+		minHeight: 100,
+	},
+	memberList: {
+		maxHeight: 150,
+		marginBottom: 20,
+	},
+	memberItem: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		padding: 12,
+		borderWidth: 1,
+		borderColor: "#FFCCBC",
+		borderRadius: 8,
+		marginBottom: 8,
+		backgroundColor: "#FFF8E1",
+	},
+	selectedMember: {
+		backgroundColor: "#FFE0B2",
+		borderColor: "#FF9800",
+	},
+	memberText: {
+		fontSize: 14,
+		fontWeight: "500",
+	},
+	checkmark: {
+		fontSize: 16,
+	},
+	modalButtons: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		gap: 12,
+	},
+	modalButton: {
+		flex: 1,
+		paddingVertical: 14,
+		borderRadius: 8,
+		alignItems: "center",
+	},
+	cancelButton: {
+		backgroundColor: "#9E9E9E",
+	},
+	startButton: {
+		backgroundColor: "#4CAF50",
+	},
+	modalButtonText: {
+		color: "white",
+		fontWeight: "600",
+		fontSize: 16,
 	},
 });

@@ -382,8 +382,8 @@ export default function TodoTab() {
 							phase === "open"
 								? choreStyles.openBadge
 								: phase === "confirm"
-								? choreStyles.confirmBadge
-								: choreStyles.rankingBadge,
+									? choreStyles.confirmBadge
+									: choreStyles.rankingBadge,
 						]}
 					>
 						<Text style={choreStyles.phaseBadgeText}>
