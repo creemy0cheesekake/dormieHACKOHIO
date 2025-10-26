@@ -228,39 +228,48 @@ export default function TodoTab() {
 		}
 	}
 
-	// --- watch for everyone finished ranking and then output to console ---
+	const [memberData, setMemberData] = useState([]);
+
+	useEffect(() => {
+		const fetchMemberData = async () => {
+			if (!members || members.length === 0) return;
+			const data = [];
+			for (const uid of members) {
+				const snap = await getDoc(doc(db, "users", uid));
+				if (snap.exists()) {
+					data.push({ uid, ...snap.data() });
+				} else {
+					data.push({ uid, Name: "Unknown" });
+				}
+			}
+			setMemberData(data);
+		};
+		fetchMemberData();
+	}, [members]);
+
 	useEffect(() => {
 		if (!roomId) return;
-		// we already have rankingsMap and members via room snapshot.
-		// If every member has an entry in rankingsMap, output final table.
 		const allRankers = Object.keys(rankingsMap || {});
-		if (members.length > 0 && allRankers.length === members.length) {
-			// Prepare matrix then console.log
-			const matrix: {
-				choreId: string;
-				choreName: string;
-				rankingsByUser: { uid: string; name?: string; rank: number }[];
-			}[] = chores.map(c => {
-				return {
-					choreId: c.id,
-					choreName: c.name,
-					rankingsByUser: members.map(uid => {
-						const userRanking = rankingsMap[uid] || {};
-						const rank = userRanking[c.id];
-						return { uid, rank: typeof rank === "number" ? rank : -1 };
-					}),
-				};
-			});
+		if (memberData.length > 0 && allRankers.length === memberData.length) {
+			const peopleStr = `{${memberData.map(m => `${m.Name || "Unknown"}:${m.uid}`).join(", ")}}`;
+			const choresStr = `{${chores
+				.map(c => {
+					const rankList = memberData
+						.map(m => {
+							const r = rankingsMap[m.uid]?.[c.id];
+							return `${m.Name || "Unknown"}:${r ?? "N/A"}`;
+						})
+						.join(", ");
+					return `{${c.name}, ${c.frequency}, ${c.id}, [${rankList}]}`;
+				})
+				.join(", ")}}`;
 
-			console.log("=== FINAL CHORE RANKINGS TABLE ===");
-			console.log("Chores:", chores);
-			console.log("Members:", members);
-			console.log("Rankings map:", rankingsMap);
-			console.log("Matrix:", matrix);
-			console.log("=== END TABLE ===");
-			// Optionally, set chorePhase to "done" or handle next step here.
+			console.log("=== FINAL CHORE RANKINGS ===");
+			console.log(`People: ${peopleStr}`);
+			console.log(`Chores: ${choresStr}`);
+			console.log("=== END ===");
 		}
-	}, [rankingsMap, members, chores, roomId]);
+	}, [rankingsMap, memberData, chores, roomId]);
 
 	async function handleResetChores() {
 		if (!ensureUserRoomOrWarn()) return;
@@ -317,8 +326,8 @@ export default function TodoTab() {
 							phase === "open"
 								? choreStyles.openBadge
 								: phase === "confirm"
-									? choreStyles.confirmBadge
-									: choreStyles.rankingBadge,
+								? choreStyles.confirmBadge
+								: choreStyles.rankingBadge,
 						]}
 					>
 						<Text style={choreStyles.phaseBadgeText}>
@@ -437,7 +446,8 @@ export default function TodoTab() {
 					{phase === "ranking" && (
 						<View style={styles.phaseContent}>
 							<Text style={styles.instruction}>
-								Rank chores from 1 (least bad) to {chores.length} (worst). Ranks must be unique! 🎯
+								Rank chores from 1 (Most Prefered) to {chores.length} (Least Prefered). Ranks must be
+								unique! 🎯
 							</Text>
 
 							<View style={styles.rankingSection}>

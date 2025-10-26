@@ -60,7 +60,7 @@ export default function MapScreen() {
 				{ accuracy: Location.Accuracy.High, distanceInterval: 5 },
 				async pos => {
 					const now = Date.now();
-					if (now - lastUpdate < 30000) return;
+					if (now - lastUpdate < 1000) return;
 					lastUpdate = now;
 
 					const { latitude, longitude } = pos.coords;

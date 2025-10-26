@@ -6,3 +6,4 @@ click
 g4f
 selenium
 sse-starlette
+uvicorn
