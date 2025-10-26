@@ -48,7 +48,7 @@ export default function Index() {
 	const [user, setUser] = useState<{ uid: string } | null>(null);
 	const [roomId, setRoomId] = useState<string | null>(null);
 	// inside component, before return
-	const myChores = user ? assignedChores.filter(c => c.assignee === user.uid) : [];
+
 	const [mediatorModalVisible, setMediatorModalVisible] = useState(false);
 
 	useEffect(() => {
@@ -59,6 +59,7 @@ export default function Index() {
 				try {
 					const parsed = JSON.parse(stored);
 					setUser({ uid: parsed.uid });
+					const myChores = user ? assignedChores.filter(c => c.assignee === user.uid) : [];
 				} catch {}
 			}
 			if (storedRoom) setRoomId(storedRoom);
