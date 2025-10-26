@@ -102,7 +102,7 @@ const Post: React.FC<PostProps> = ({ image, name, time, text, initialLikes, comm
 				<Image source={{ uri: image }} style={styles.avatar} />
 				<View style={styles.headerText}>
 					<Text style={styles.name}>{name}</Text>
-					<Text style={styles.time}>{time}</Text>
+					<Text style={styles.time}>{time} ago</Text>
 				</View>
 			</View>
 
@@ -112,17 +112,16 @@ const Post: React.FC<PostProps> = ({ image, name, time, text, initialLikes, comm
 			{/* Footer */}
 			<View style={styles.footer}>
 				{/* Comment Button */}
-				<TouchableOpacity style={styles.commentButton}>
-					<Text style={styles.commentText}>💬 {comments} comments</Text>
+				<TouchableOpacity style={styles.actionButton}>
+					<Text style={styles.actionIcon}>💬</Text>
+					<Text style={styles.actionText}>{comments}</Text>
 				</TouchableOpacity>
 
 				{/* Like Button and Count */}
-				<View style={styles.likeSection}>
-					<TouchableOpacity onPress={toggleLike} style={styles.likeButton}>
-						<Text style={[styles.likeText, liked && styles.liked]}>{liked ? "❤️" : "🤍"}</Text>
-					</TouchableOpacity>
-					<Text style={styles.likeCount}>{likes}</Text>
-				</View>
+				<TouchableOpacity onPress={toggleLike} style={styles.actionButton}>
+					<Text style={[styles.actionIcon, liked && styles.likedIcon]}>{liked ? "❤️" : "🤍"}</Text>
+					<Text style={[styles.actionText, liked && styles.likedText]}>{likes}</Text>
+				</TouchableOpacity>
 			</View>
 		</View>
 	);
@@ -146,6 +145,7 @@ const PostList: React.FC = () => {
 			keyExtractor={(_, index) => index.toString()}
 			renderItem={renderItem}
 			contentContainerStyle={styles.listContainer}
+			showsVerticalScrollIndicator={false}
 		/>
 	);
 };
@@ -156,76 +156,87 @@ const screenWidth = Dimensions.get("window").width;
 
 const styles = StyleSheet.create({
 	listContainer: {
-		padding: 12,
-		backgroundColor: "#f5f5f5",
+		padding: 16,
+		backgroundColor: "#FFF9C4",
 	},
 	postContainer: {
-		backgroundColor: "#fff",
-		borderRadius: 12,
-		padding: 16,
+		backgroundColor: "#FFFFFF",
+		borderRadius: 20,
+		padding: 20,
 		marginBottom: 16,
-		width: screenWidth - 24,
+		width: screenWidth - 32,
 		alignSelf: "center",
-		shadowColor: "#000",
-		shadowOpacity: 0.1,
-		shadowRadius: 6,
 		elevation: 3,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 8,
+		borderLeftWidth: 4,
+		borderLeftColor: "#FFD166",
 	},
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginBottom: 8,
+		marginBottom: 12,
 	},
 	avatar: {
-		width: 42,
-		height: 42,
-		borderRadius: 21,
-		backgroundColor: "#ccc",
-		marginRight: 10,
+		width: 48,
+		height: 48,
+		borderRadius: 24,
+		backgroundColor: "#FFE0B2",
+		marginRight: 12,
+		borderWidth: 2,
+		borderColor: "#FFD166",
 	},
 	headerText: {
 		flexDirection: "column",
 	},
 	name: {
-		fontWeight: "bold",
+		fontWeight: "600",
 		fontSize: 16,
+		color: "#D84315",
+		marginBottom: 2,
 	},
 	time: {
-		color: "#888",
-		fontSize: 12,
+		color: "#FF9800",
+		fontSize: 13,
+		fontWeight: "500",
 	},
 	content: {
 		fontSize: 15,
-		marginVertical: 10,
+		lineHeight: 22,
+		color: "#2D3748",
+		marginVertical: 12,
 	},
 	footer: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "space-between",
+		paddingTop: 12,
+		borderTopWidth: 1,
+		borderTopColor: "#FFE0B2",
 	},
-	commentButton: {
-		paddingVertical: 6,
-		paddingHorizontal: 12,
-	},
-	commentText: {
-		fontSize: 14,
-		color: "#0077cc",
-	},
-	likeSection: {
+	actionButton: {
 		flexDirection: "row",
 		alignItems: "center",
+		paddingVertical: 8,
+		paddingHorizontal: 16,
+		borderRadius: 20,
+		backgroundColor: "#FFF8E1",
 	},
-	likeButton: {
-		marginRight: 8,
+	actionIcon: {
+		fontSize: 18,
+		marginRight: 6,
 	},
-	likeText: {
-		fontSize: 15,
+	likedIcon: {
+		fontSize: 18,
 	},
-	liked: {
-		color: "#e63946",
-	},
-	likeCount: {
-		color: "#666",
+	actionText: {
 		fontSize: 14,
+		fontWeight: "600",
+		color: "#666",
+	},
+	likedText: {
+		color: "#E53E3E",
 	},
 });

@@ -56,11 +56,14 @@ const Post: React.FC<PostProps> = ({
 			<View style={styles.header}>
 				<View style={styles.profileContainer}>
 					<Image source={{ uri: profileImage }} style={styles.profileImage} />
-					<Text style={styles.profileName}>{profileName}</Text>
+					<View style={styles.profileInfo}>
+						<Text style={styles.profileName}>{profileName}</Text>
+						<Text style={styles.postTime}>2h ago</Text>
+					</View>
 				</View>
 
-				<TouchableOpacity onPress={() => setMenuVisible(true)}>
-					<Text style={styles.menuDots}>⋮</Text>
+				<TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.menuButton}>
+					<Text style={styles.menuDots}>⋯</Text>
 				</TouchableOpacity>
 
 				{/* Menu Modal */}
@@ -68,10 +71,11 @@ const Post: React.FC<PostProps> = ({
 					<Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
 						<View style={styles.menuContainer}>
 							<TouchableOpacity style={styles.menuItem} onPress={handleHide}>
-								<Text style={styles.menuText}>Hide Post</Text>
+								<Text style={styles.menuText}>🙈 Hide Post</Text>
 							</TouchableOpacity>
+							<View style={styles.menuDivider} />
 							<TouchableOpacity style={styles.menuItem} onPress={handleReport}>
-								<Text style={[styles.menuText, styles.reportText]}>Report</Text>
+								<Text style={[styles.menuText, styles.reportText]}>🚩 Report</Text>
 							</TouchableOpacity>
 						</View>
 					</Pressable>
@@ -84,23 +88,17 @@ const Post: React.FC<PostProps> = ({
 			{/* Footer */}
 			<View style={styles.footer}>
 				<TouchableOpacity style={styles.footerButton}>
-					<Image
-						source={{ uri: "https://cdn-icons-png.flaticon.com/512/1380/1380338.png" }}
-						style={styles.footerIcon}
-					/>
+					<View style={styles.iconContainer}>
+						<Text style={styles.footerIcon}>💬</Text>
+					</View>
 					<Text style={styles.footerText}>{comments}</Text>
 				</TouchableOpacity>
 
 				<TouchableOpacity style={styles.footerButton} onPress={handleLike}>
-					<Image
-						source={{
-							uri: isLiked
-								? "https://cdn-icons-png.flaticon.com/512/833/833472.png"
-								: "https://cdn-icons-png.flaticon.com/512/1077/1077035.png",
-						}}
-						style={styles.footerIcon}
-					/>
-					<Text style={styles.footerText}>{likes}</Text>
+					<View style={styles.iconContainer}>
+						<Text style={[styles.footerIcon, isLiked && styles.likedIcon]}>{isLiked ? "❤️" : "🤍"}</Text>
+					</View>
+					<Text style={[styles.footerText, isLiked && styles.likedText]}>{likes}</Text>
 				</TouchableOpacity>
 			</View>
 		</View>
@@ -111,86 +109,135 @@ const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
 	container: {
-		width: width - 20,
-		margin: 10,
-		padding: 15,
-		backgroundColor: "#fff",
-		borderRadius: 10,
+		width: width - 32,
+		marginHorizontal: 16,
+		marginVertical: 8,
+		padding: 20,
+		backgroundColor: "#FFFFFF",
+		borderRadius: 16,
+		elevation: 3,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 0.1,
-		shadowRadius: 4,
-		elevation: 3,
+		shadowRadius: 8,
+		borderLeftWidth: 4,
+		borderLeftColor: "#FFD166",
 	},
 	header: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 10,
+		alignItems: "flex-start",
+		marginBottom: 12,
 	},
 	profileContainer: {
 		flexDirection: "row",
 		alignItems: "center",
+		flex: 1,
 	},
 	profileImage: {
-		width: 40,
-		height: 40,
-		borderRadius: 20,
-		marginRight: 10,
+		width: 44,
+		height: 44,
+		borderRadius: 22,
+		marginRight: 12,
+		borderWidth: 2,
+		borderColor: "#FFE0B2",
+	},
+	profileInfo: {
+		flex: 1,
 	},
 	profileName: {
-		fontWeight: "bold",
+		fontWeight: "600",
 		fontSize: 16,
+		color: "#D84315",
+		marginBottom: 2,
+	},
+	postTime: {
+		fontSize: 12,
+		color: "#FF9800",
+		fontWeight: "500",
+	},
+	menuButton: {
+		padding: 8,
+		borderRadius: 8,
+		backgroundColor: "#FFF8E1",
 	},
 	menuDots: {
-		fontSize: 24,
-		color: "#666",
-		paddingHorizontal: 10,
+		fontSize: 20,
+		color: "#FF9800",
+		fontWeight: "bold",
 	},
 	content: {
-		fontSize: 14,
-		lineHeight: 20,
-		marginBottom: 15,
+		fontSize: 15,
+		lineHeight: 22,
+		color: "#2D3748",
+		marginBottom: 16,
 	},
 	footer: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		paddingTop: 10,
+		paddingTop: 12,
+		borderTopWidth: 1,
+		borderTopColor: "#FFE0B2",
 	},
 	footerButton: {
 		flexDirection: "row",
 		alignItems: "center",
+		paddingVertical: 6,
+		paddingHorizontal: 12,
+		borderRadius: 20,
+		backgroundColor: "#FFF8E1",
+	},
+	iconContainer: {
+		marginRight: 6,
 	},
 	footerIcon: {
-		width: 20,
-		height: 20,
-		marginRight: 5,
+		fontSize: 18,
+	},
+	likedIcon: {
+		fontSize: 18,
 	},
 	footerText: {
 		fontSize: 14,
+		fontWeight: "500",
 		color: "#666",
+	},
+	likedText: {
+		color: "#E53E3E",
+		fontWeight: "600",
 	},
 	modalOverlay: {
 		flex: 1,
 		justifyContent: "center",
 		alignItems: "center",
-		backgroundColor: "rgba(0,0,0,0.5)",
+		backgroundColor: "rgba(0,0,0,0.4)",
 	},
 	menuContainer: {
-		backgroundColor: "white",
-		borderRadius: 8,
-		padding: 10,
-		width: 150,
+		backgroundColor: "#FFFFFF",
+		borderRadius: 16,
+		paddingVertical: 8,
+		width: 180,
+		elevation: 8,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.15,
+		shadowRadius: 12,
 	},
 	menuItem: {
-		paddingVertical: 10,
-		paddingHorizontal: 15,
+		paddingVertical: 12,
+		paddingHorizontal: 16,
 	},
 	menuText: {
 		fontSize: 16,
+		fontWeight: "500",
+		color: "#2D3748",
 	},
 	reportText: {
-		color: "red",
+		color: "#E53E3E",
+	},
+	menuDivider: {
+		height: 1,
+		backgroundColor: "#FFE0B2",
+		marginHorizontal: 8,
 	},
 });
 

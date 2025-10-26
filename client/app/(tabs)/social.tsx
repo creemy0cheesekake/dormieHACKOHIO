@@ -59,8 +59,8 @@ const Social = () => {
 	];
 
 	return (
-		<SafeAreaView>
-			<ScrollView contentContainerStyle={{ paddingBottom: tabBarHeight }} style={styles.container}>
+		<SafeAreaView contentContainerStyle={{ paddingBottom: tabBarHeight + 30 }}>
+			<ScrollView contentContainerStyle={{ paddingBottom: tabBarHeight + 30 }} style={styles.container}>
 				{posts.map(post => (
 					<Post
 						key={post.id}
