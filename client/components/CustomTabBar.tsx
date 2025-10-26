@@ -32,13 +32,15 @@ const CurvedBackground = ({ padding, colors }) => {
 	);
 };
 
+const PADDING_CONST = 34;
+
 export default ({ state, descriptors, navigation }) => {
 	const { colors } = useTheme();
 	const insets = useSafeAreaInsets();
 
 	return (
-		<View style={[styles.container, { paddingBlock: insets.bottom }]}>
-			<CurvedBackground padding={insets.bottom} colors={colors} />
+		<View style={[styles.container, { paddingBlock: PADDING_CONST + insets.bottom }]}>
+			<CurvedBackground padding={PADDING_CONST + insets.bottom} colors={colors} />
 			{state.routes.map((route, index) => {
 				const { options } = descriptors[route.key];
 				const isFocused = state.index === index;

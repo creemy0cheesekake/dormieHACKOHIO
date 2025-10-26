@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from "react";
 // import { ScrollView, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert } from "react-native";
-import {
-	View,
-	Text,
-	FlatList,
-	StyleSheet,
-	TouchableOpacity,
-	StatusBar,
-	TextInput,
-	ScrollView,
-	Alert,
-} from "react-native";
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -327,8 +317,8 @@ export default function TodoTab() {
 							phase === "open"
 								? choreStyles.openBadge
 								: phase === "confirm"
-								? choreStyles.confirmBadge
-								: choreStyles.rankingBadge,
+									? choreStyles.confirmBadge
+									: choreStyles.rankingBadge,
 						]}
 					>
 						<Text style={choreStyles.phaseBadgeText}>
@@ -362,7 +352,6 @@ export default function TodoTab() {
 
 	return (
 		<SafeAreaView style={styles.safeArea}>
-			<StatusBar backgroundColor="#FFD166" barStyle="dark-content" />
 			<ScrollView
 				style={styles.container}
 				contentContainerStyle={styles.scrollContent}
