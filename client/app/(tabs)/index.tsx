@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Text, View, TouchableOpacity, FlatList, Alert, StyleSheet } from "react-native";
+import { Text, View, TouchableOpacity, FlatList, Alert, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -10,6 +10,7 @@ import {
 	updateDoc,
 	serverTimestamp,
 } from "firebase/firestore";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { db } from "../../firebaseConfig";
 
 function toDateString(ts: any) {
@@ -32,6 +33,7 @@ function freqToMs(freq: string | undefined) {
 }
 
 export default function Index() {
+	const tabBarHeight = useBottomTabBarHeight();
 	const [room, setRoom] = useState<any | null>(null);
 	const [memberData, setMemberData] = useState<
 		{ uid: string; Name?: string; inRange?: boolean; lastUpdated?: any }[]
@@ -96,8 +98,10 @@ export default function Index() {
 							Name: udata?.Name ?? udata?.name ?? "Unknown",
 							inRange: !!udata?.inRange,
 							lastUpdated: udata?.lastUpdated ?? null,
+							// add these two lines
+							latitude: udata?.latitude ?? udata?.lat ?? null,
+							longitude: udata?.longitude ?? udata?.long ?? null,
 						});
-						// keep stable order matching room.members if available
 						if (memberIds.length) {
 							return memberIds.map(id => copy.find(x => x.uid === id) || { uid: id, Name: "Unknown" });
 						}
@@ -163,87 +167,161 @@ export default function Index() {
 
 	return (
 		<SafeAreaView style={styles.container}>
-			{/* Room Header */}
-			<View style={styles.roomHeader}>
-				<Text style={styles.roomName}>🏠 {room.name}</Text>
-				<View style={styles.codeContainer}>
-					<Text style={styles.codeLabel}>Join Code:</Text>
-					<Text style={styles.codeValue}>{String(room.code)}</Text>
-				</View>
-			</View>
-
-			{/* Roommates Section */}
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>👥 Roommates</Text>
-				{memberData.map(m => (
-					<View key={m.uid} style={styles.memberCard}>
-						<View style={styles.memberHeader}>
-							<Text style={styles.memberName}>{m.Name}</Text>
-							<View style={[styles.statusIndicator, m.inRange ? styles.homeStatus : styles.awayStatus]}>
-								<Text style={styles.statusText}>{m.inRange ? "🏠 Home" : "✈️ Away"}</Text>
-							</View>
-						</View>
-						<Text style={styles.lastUpdated}>Last update: {toDateString(m.lastUpdated)}</Text>
+			<ScrollView
+				showsVerticalScrollIndicator={false}
+				contentContainerStyle={{ paddingBottom: tabBarHeight + 50 }}
+			>
+				{/* Room Header */}
+				<View style={styles.roomHeader}>
+					<Text style={styles.roomName}>🏠 {room.name}</Text>
+					<View style={styles.codeContainer}>
+						<Text style={styles.codeLabel}>Join Code:</Text>
+						<Text style={styles.codeValue}>{String(room.code)}</Text>
 					</View>
-				))}
-			</View>
+				</View>
 
-			{/* Todo Section */}
-			<View style={styles.section}>
-				<Text style={styles.sectionTitle}>✅ Your Chores</Text>
+				{/* Roommates Section */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>👥 Roommates</Text>
+					{memberData.map(m => {
+						let anomaly: string | null = null;
+						const now = new Date();
+						const hour = now.getHours();
 
-				<FlatList
-					data={user ? assignedChores.filter(c => c.assignee === user.uid) : []}
-					keyExtractor={c => c.id}
-					renderItem={({ item }) => {
-						const done = isChoreCurrentlyDone(item);
-						const assigneeName = (memberData.find(m => m.uid === item.assignee) || { Name: "Unknown" })
-							.Name;
-						const isMine = item.assignee === user?.uid;
+						const userLat = m.latitude;
+						const userLon = m.longitude;
+						const dormLat = room?.location?.latitude;
+						const dormLon = room?.location?.longitude;
+
+						if (
+							typeof userLat === "number" &&
+							typeof userLon === "number" &&
+							typeof dormLat === "number" &&
+							typeof dormLon === "number"
+						) {
+							const R = 3958.8;
+							const toRad = (x: number) => (x * Math.PI) / 180;
+							const dLat = toRad(userLat - dormLat);
+							const dLon = toRad(userLon - dormLon);
+							const a =
+								Math.sin(dLat / 2) ** 2 +
+								Math.cos(toRad(dormLat)) * Math.cos(toRad(userLat)) * Math.sin(dLon / 2) ** 2;
+							const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+							const dist = R * c;
+
+							if (hour >= 2 && hour < 6 && dist > 10) {
+								anomaly = `⚠️ Unusual Location: ${dist.toFixed(1)} miles from dorm at night`;
+							}
+						}
 
 						return (
-							<View style={styles.choreCard}>
-								<TouchableOpacity
-									onPress={() => {
-										if (!isMine) {
-											Alert.alert("Not allowed", "You can only toggle chores assigned to you.");
-											return;
-										}
-										toggleChoreDone(item.id, done);
-									}}
-									disabled={!isMine}
-									style={[
-										styles.checkbox,
-										done && styles.checkboxDone,
-										!isMine && styles.checkboxDisabled,
-									]}
-								>
-									<Text style={styles.checkboxText}>{done ? "✓" : ""}</Text>
-								</TouchableOpacity>
-
-								<View style={styles.choreInfo}>
-									<Text style={styles.choreName}>{String(item.name)}</Text>
-									<Text style={styles.choreDetails}>
-										⏰ {String(item.frequency)} • 👤 {String(assigneeName)}
-									</Text>
-									<Text style={styles.lastDone}>Last done: {toDateString(item.lastDone)}</Text>
+							<View key={m.uid} style={[styles.memberCard, anomaly && styles.memberAnomaly]}>
+								<View style={styles.memberHeader}>
+									<Text style={styles.memberName}>{m.Name}</Text>
+									<View
+										style={[
+											styles.statusIndicator,
+											m.inRange ? styles.homeStatus : styles.awayStatus,
+										]}
+									>
+										<Text style={styles.statusText}>{m.inRange ? "🏠 Home" : "✈️ Away"}</Text>
+									</View>
 								</View>
+								<Text style={styles.lastUpdated}>Last update: {toDateString(m.lastUpdated)}</Text>
+								{anomaly && <Text style={styles.anomalyText}>{anomaly}</Text>}
 							</View>
 						);
-					}}
-					ListEmptyComponent={
-						<View style={styles.emptyState}>
-							<Text style={styles.emptyText}>🎉 No chores assigned to you!</Text>
-							<Text style={styles.emptySubtext}>Enjoy the free time!</Text>
-						</View>
-					}
-				/>
-			</View>
+					})}
+				</View>
+
+				{/* Todo Section */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>✅ Chores</Text>
+					<FlatList
+						data={assignedChores}
+						scrollEnabled={false}
+						keyExtractor={c => c.id}
+						renderItem={({ item }) => {
+							const done = isChoreCurrentlyDone(item);
+							const assigneeName = (memberData.find(m => m.uid === item.assignee) || { Name: "Unknown" })
+								.Name;
+							const isMine = item.assignee === user?.uid;
+
+							// overdue check
+							let overdue = false;
+							if (!done && item.lastDone) {
+								const freqMs = freqToMs(item.frequency);
+								const lastMs = item.lastDone?.toDate
+									? item.lastDone.toDate().getTime()
+									: new Date(item.lastDone).getTime();
+								overdue = Date.now() - lastMs > freqMs;
+							} else if (!done && !item.lastDone) {
+								overdue = true;
+							}
+
+							return (
+								<View style={[styles.choreCard, overdue && styles.choreOverdue]}>
+									<TouchableOpacity
+										onPress={() => {
+											if (!isMine) {
+												Alert.alert(
+													"Not allowed",
+													"You can only toggle chores assigned to you.",
+												);
+												return;
+											}
+											toggleChoreDone(item.id, done);
+										}}
+										disabled={!isMine}
+										style={[
+											styles.checkbox,
+											done && styles.checkboxDone,
+											!isMine && styles.checkboxDisabled,
+										]}
+									>
+										<Text style={styles.checkboxText}>{done ? "✓" : ""}</Text>
+									</TouchableOpacity>
+
+									<View style={styles.choreInfo}>
+										<View style={styles.choreTitleRow}>
+											<Text style={styles.choreName}>{String(item.name)}</Text>
+											{overdue && <Text style={styles.overdueLabel}>⚠️ Overdue</Text>}
+										</View>
+										<Text style={styles.choreDetails}>
+											⏰ {String(item.frequency)} • 👤 {String(assigneeName)}
+										</Text>
+										<Text style={styles.lastDone}>Last done: {toDateString(item.lastDone)}</Text>
+									</View>
+								</View>
+							);
+						}}
+					/>
+				</View>
+			</ScrollView>
 		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
+	choreTitleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+	},
+	overdueLabel: {
+		fontSize: 12,
+		color: "#C62828",
+		fontWeight: "600",
+		marginLeft: 8,
+	},
+	choreOverdue: {
+		backgroundColor: "#ffd3d3ff",
+		borderLeftColor: "#e60000ff",
+	},
+	memberAnomaly: {
+		backgroundColor: "#FFCDD2",
+		borderLeftColor: "#D32F2F",
+	},
 	container: {
 		flex: 1,
 		backgroundColor: "#FFF9C4",
@@ -369,6 +447,7 @@ const styles = StyleSheet.create({
 	},
 	checkboxDisabled: {
 		opacity: 0.5,
+		borderColor: "#222222",
 	},
 	checkboxText: {
 		color: "#FFFFFF",
@@ -409,5 +488,11 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: "#666",
 		fontStyle: "italic",
+	},
+	anomalyText: {
+		color: "#C62828",
+		fontSize: 12,
+		marginTop: 4,
+		fontWeight: "500",
 	},
 });
