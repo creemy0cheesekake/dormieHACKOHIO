@@ -69,7 +69,6 @@ export default function TabLayout() {
 	return (
 		<Tabs tabBar={props => <CustomTabBar {...props} />}>
 			<Tabs.Screen name="index" options={{ title: "home", headerShown: false }} />
-			<Tabs.Screen name="dorm" options={{ title: "dorm", headerShown: false }} />
 			<Tabs.Screen name="map" options={{ title: "map", headerShown: false }} />
 			<Tabs.Screen name="social" options={{ title: "social", headerShown: false }} />
 			<Tabs.Screen name="aiMediator" options={{ title: "aiMediator", headerShown: false }} />
