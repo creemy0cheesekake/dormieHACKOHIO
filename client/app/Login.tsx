@@ -3,20 +3,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login, register } from "../firebaseAuth";
-import {
-	StyleSheet,
-	Text,
-	TextInput,
-	TouchableOpacity,
-	View,
-	KeyboardAvoidingView,
-	Platform,
-	Dimensions,
-	Image,
-	Button,
-} from "react-native";
+import { StyleSheet, Text, TextInput, View, Image, Button, Dimensions } from "react-native";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
-// Hard-defined Colors
 const Colors = {
 	primary: "#FFD700",
 	secondary: "#007AFF",
@@ -29,11 +19,10 @@ const Colors = {
 };
 
 const { height } = Dimensions.get("window");
-
 const DORMIE_LOGO = require("../assets/Dormie.png");
 
 type IconProps = {
-	name: "User" | "Lock";
+	name: "User" | "Lock" | "Name";
 	color?: string;
 };
 
@@ -41,13 +30,14 @@ const Icon = ({ name, color = Colors.textSecondary }: IconProps) => {
 	let symbol = "";
 	if (name === "User") symbol = "👤";
 	if (name === "Lock") symbol = "🔒";
-
+	if (name === "Name") symbol = "📝";
 	return <Text style={{ color, fontSize: 18, marginRight: 10 }}>{symbol}</Text>;
 };
 
 export default function Login() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [name, setName] = useState("");
 	const [error, setError] = useState("");
 	const [isSignUp, setIsSignUp] = useState(false);
 	const router = useRouter();
@@ -57,6 +47,11 @@ export default function Login() {
 			let userCred;
 			if (isSignUp) {
 				userCred = await register(email, password);
+				const uid = userCred.user.uid;
+
+				await setDoc(doc(db, "users", uid), {
+					Name: name,
+				});
 			} else {
 				userCred = await login(email, password);
 			}
@@ -65,10 +60,7 @@ export default function Login() {
 				uid: userCred.user.uid,
 				email: userCred.user.email,
 			};
-			console.log(userData);
 			await AsyncStorage.setItem("user", JSON.stringify(userData));
-			let data = await AsyncStorage.getItem("user");
-			console.log(data);
 			router.replace("/(tabs)");
 		} catch (e: any) {
 			setError(e.message);
@@ -78,13 +70,22 @@ export default function Login() {
 	return (
 		<SafeAreaView style={styles.safeArea}>
 			<View style={styles.content}>
-				{/* LOGO */}
 				<Image source={DORMIE_LOGO} style={styles.logo} resizeMode="contain" />
-
-				{/* TITLE */}
 				<Text style={styles.title}>{isSignUp ? "Create Account" : "Log In"}</Text>
 
-				{/* Email Input */}
+				{isSignUp && (
+					<View style={styles.inputContainer}>
+						<Icon name="Name" />
+						<TextInput
+							placeholder="Full Name"
+							value={name}
+							onChangeText={setName}
+							style={styles.input}
+							placeholderTextColor={Colors.textSecondary}
+						/>
+					</View>
+				)}
+
 				<View style={styles.inputContainer}>
 					<Icon name="User" />
 					<TextInput
@@ -97,7 +98,6 @@ export default function Login() {
 					/>
 				</View>
 
-				{/* Password Input */}
 				<View style={styles.inputContainer}>
 					<Icon name="Lock" />
 					<TextInput
@@ -110,12 +110,10 @@ export default function Login() {
 					/>
 				</View>
 
-				{/* Button */}
 				<View style={styles.buttonWrapper}>
 					<Button title={isSignUp ? "Create Account" : "Login"} onPress={handleAuth} color={Colors.primary} />
 				</View>
 
-				{/* Toggle Link */}
 				<Text
 					onPress={() => {
 						setIsSignUp(!isSignUp);
@@ -126,7 +124,6 @@ export default function Login() {
 					{isSignUp ? "Already have an account? Log in" : "No account? Sign up"}
 				</Text>
 
-				{/* Error Message */}
 				{error ? <Text style={styles.errorText}>{error}</Text> : null}
 			</View>
 		</SafeAreaView>
@@ -134,11 +131,6 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: Colors.background,
-		justifyContent: "center",
-	},
 	safeArea: {
 		flex: 1,
 		paddingHorizontal: 24,
@@ -156,7 +148,7 @@ const styles = StyleSheet.create({
 	},
 	title: {
 		fontSize: 24,
-		fontWeight: "700" as const,
+		fontWeight: "700",
 		color: Colors.text,
 		marginBottom: 20,
 	},
@@ -188,13 +180,13 @@ const styles = StyleSheet.create({
 		color: Colors.secondary,
 		marginTop: 10,
 		fontSize: 14,
-		fontWeight: "600" as const,
+		fontWeight: "600",
 	},
 	errorText: {
 		color: Colors.error,
 		marginTop: 10,
 		fontSize: 14,
-		fontWeight: "500" as const,
+		fontWeight: "500",
 		textAlign: "center",
 	},
 });

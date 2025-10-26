@@ -34,6 +34,7 @@ export default function RootLayout() {
 			<StatusBar backgroundColor="#FFD166" barStyle="dark-content" />
 			<Stack.Screen name="Login" options={{ headerShown: false }} />
 			<Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+			<Stack.Screen name="RoomGate" options={{ headerShown: false }} />
 		</Stack>
 	);
 }
