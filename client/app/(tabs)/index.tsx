@@ -64,7 +64,7 @@ export default function Index() {
 			}
 			if (storedRoom) setRoomId(storedRoom);
 		})();
-		if (auth.currentUser.uid == mediatedUserId) {
+		if (auth?.currentUser?.uid === mediatedUserId) {
 			setMediatorModalVisible(true);
 		}
 	}, []);
