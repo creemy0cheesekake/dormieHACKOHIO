@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 import asyncio
 from ai4free import PhindSearch
 import secrets
+import json
 
 
 app = FastAPI()
@@ -13,6 +14,11 @@ app = FastAPI()
 class Request(BaseModel):
     convoId: str
     prompt: str
+
+
+class ChoreRequest(BaseModel):
+    peopleStr: str
+    choresStr: str
 
 
 class Response(BaseModel):
@@ -51,4 +57,53 @@ async def chat_get():
 async def chat_post(req: Request):
     ai = convos[req.convoId]
     answer = ai.chat(req.prompt)
+    return Response(result=answer)
+
+
+def generate_chore_prompt(people, chores):
+    prompt_lines = []
+    prompt_lines.append(
+        "You are assigning chores based on willingness scores. A HIGHER score means the person is LESS willing to do that chore.\n"
+        "Your job is to assign each chore to exactly one person in the fairest way possible.\n"
+        "Return ONLY a valid JSON object mapping `chore_id` to `person_id`."
+    )
+
+    # Add a section listing the people and their IDs
+    prompt_lines.append("\nHere are the people and their IDs:")
+    for person, pid in people.items():
+        prompt_lines.append(f"- {person}: {pid}")
+
+    # Add chores and scores
+    prompt_lines.append("\nHere are the chores, their frequencies, and the willingness rankings:")
+    for chore in chores:
+        prompt_lines.append(
+            f"\nThe chore '{chore['task']}' must be done {chore['frequency']}. "
+            f"The id of '{chore['task']}' is {chore['id']}."
+        )
+        for person, score in chore["scores"].items():
+            prompt_lines.append(f"{person} ranked '{chore['task']}' at {score}.")
+
+    # Final instruction / required output format
+    prompt_lines.append(
+        "\nReturn your final answer ONLY as valid JSON, with this exact format:\n"
+        "{\n"
+        '  \"<chore_id>\": \"<person_id>\",\n'
+        '  \"<chore_id>\": \"<person_id>\",\n'
+        "  ...\n"
+        "}\n"
+    )
+
+    return "\n".join(prompt_lines)
+
+
+@app.post("/chore", response_model=Response)
+async def chore_post(req: ChoreRequest):
+    people = json.loads(req.peopleStr)
+    chores = json.loads(req.choresStr)
+    ai = PhindSearch()
+    prompt = generate_chore_prompt(people, chores)
+    answer = ai.chat(prompt)
+    print('---\nANSWER\n---', answer)
+    print(prompt)
+    print(answer)
     return Response(result=answer)
