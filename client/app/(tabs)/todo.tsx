@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { SERVER_ENDPOINT } from "@env";
 
 /**
  * Firestore layout used:
@@ -251,23 +252,48 @@ export default function TodoTab() {
 		if (!roomId) return;
 		const allRankers = Object.keys(rankingsMap || {});
 		if (memberData.length > 0 && allRankers.length === memberData.length) {
-			const peopleStr = `{${memberData.map(m => `${m.Name || "Unknown"}:${m.uid}`).join(", ")}}`;
-			const choresStr = `{${chores
-				.map(c => {
-					const rankList = memberData
-						.map(m => {
-							const r = rankingsMap[m.uid]?.[c.id];
-							return `${m.Name || "Unknown"}:${r ?? "N/A"}`;
-						})
-						.join(", ");
-					return `{${c.name}, ${c.frequency}, ${c.id}, [${rankList}]}`;
-				})
-				.join(", ")}}`;
+			const peopleStr = `{${memberData.map(m => `"${m.Name || "Unknown"}" : "${m.uid}"`).join(", ")}}`;
+			const choresStr = JSON.stringify(
+				chores.map(c => {
+					const scores = {};
+					memberData.forEach(m => {
+						const name = m.Name || "Unknown";
+						const score = rankingsMap[m.uid]?.[c.id];
+						const finalValue =
+							!isNaN(parseFloat(score)) && isFinite(score) ? parseFloat(score) : score ?? "N/A";
+
+						scores[name] = finalValue;
+					});
+					return {
+						task: c.name,
+						frequency: c.frequency,
+						id: c.id,
+						scores: scores,
+					};
+				}),
+			);
 
 			console.log("=== FINAL CHORE RANKINGS ===");
 			console.log(`People: ${peopleStr}`);
 			console.log(`Chores: ${choresStr}`);
 			console.log("=== END ===");
+
+			(async () => {
+				const res = await fetch(SERVER_ENDPOINT + "/chore", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ peopleStr, choresStr }),
+				});
+				const data = await res.json();
+				try {
+					const aiDistribution = JSON.parse(data.result);
+					console.log("\n----\n", aiDistribution, "\n----");
+				} catch (err) {
+					console.log(err);
+					console.log(data.result);
+					alert("AI Error");
+				}
+			})();
 		}
 	}, [rankingsMap, memberData, chores, roomId]);
 
@@ -326,8 +352,8 @@ export default function TodoTab() {
 							phase === "open"
 								? choreStyles.openBadge
 								: phase === "confirm"
-								? choreStyles.confirmBadge
-								: choreStyles.rankingBadge,
+									? choreStyles.confirmBadge
+									: choreStyles.rankingBadge,
 						]}
 					>
 						<Text style={choreStyles.phaseBadgeText}>

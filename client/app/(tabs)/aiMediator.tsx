@@ -102,7 +102,7 @@ export default function App() {
 	}, [room?.id, currentUser]);
 
 	const getNewConvoId = async () => {
-		const res = await fetch(SERVER_ENDPOINT);
+		const res = await fetch(SERVER_ENDPOINT + "/chat");
 		const data = await res.json();
 		setConvoId(data.result);
 	};
@@ -129,7 +129,7 @@ export default function App() {
 		setInput("");
 
 		try {
-			const res = await fetch(SERVER_ENDPOINT, {
+			const res = await fetch(SERVER_ENDPOINT + "/chat", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ prompt, convoId }),
@@ -156,6 +156,7 @@ export default function App() {
 				});
 			}
 		} catch (err) {
+			console.log(err);
 			setMessages(prev => [
 				{ id: Date.now().toString() + "-err", text: "⚠️ Error contacting server", sender: "bot" },
 				...prev,
