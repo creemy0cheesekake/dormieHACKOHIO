@@ -5,23 +5,101 @@ import {
 	TextInput,
 	TouchableOpacity,
 	View,
-	Button,
 	FlatList,
 	KeyboardAvoidingView,
 	Platform,
+	Modal,
+	ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { SERVER_ENDPOINT } from "@env";
+import { db } from "../../firebaseConfig";
+import { doc, getDoc, collection, addDoc, updateDoc, onSnapshot, query, where, orderBy } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 export default function App() {
 	const tabBarHeight = useBottomTabBarHeight();
+	const [mode, setMode] = useState("advice"); // "advice" or "mediator"
 	const [messages, setMessages] = useState([]);
 	const [convoId, setConvoId] = useState(null);
 	const [input, setInput] = useState("");
 	const [outputting, setOutputting] = useState(false);
+	const [room, setRoom] = useState(null);
+	const [mediatorModalVisible, setMediatorModalVisible] = useState(false);
+	const [mediatorPrompt, setMediatorPrompt] = useState("");
+	const [selectedMembers, setSelectedMembers] = useState([]);
+	const [activeMediation, setActiveMediation] = useState(null);
 
 	const stopRef = useRef(false);
+	const auth = getAuth();
+	const currentUser = auth.currentUser;
+
+	const [roomMembers, setRoomMembers] = useState([]);
+
+	// Add this useEffect to load member names
+	useEffect(() => {
+		const loadMemberNames = async () => {
+			if (!room?.members) return;
+
+			const membersWithNames = await Promise.all(
+				room.members.map(async uid => {
+					try {
+						const userDoc = await getDoc(doc(db, "users", uid));
+						if (userDoc.exists()) {
+							return { uid, name: userDoc.data().Name };
+						}
+						return { uid, name: "Unknown User" };
+					} catch (error) {
+						return { uid, name: "Error loading" };
+					}
+				}),
+			);
+			setRoomMembers(membersWithNames);
+		};
+
+		loadMemberNames();
+	}, [room?.members]);
+
+	// Load room data
+	useEffect(() => {
+		const loadRoom = async () => {
+			// You'll need to get roomId from your storage/context
+			const roomId = await AsyncStorage.getItem("roomId"); // or from your state management
+			if (!roomId) return;
+			const snap = await getDoc(doc(db, "rooms", roomId));
+			if (snap.exists()) {
+				setRoom(snap.data());
+			}
+		};
+		loadRoom();
+	}, []);
+
+	// Listen for active mediations
+	useEffect(() => {
+		if (!room?.id || !currentUser) return;
+
+		const mediationsRef = collection(db, "rooms", room.id, "mediations");
+		const q = query(
+			mediationsRef,
+			where("participants", "array-contains", currentUser.uid),
+			where("status", "in", ["active", "waiting"]),
+			orderBy("createdAt", "desc"),
+		);
+
+		const unsubscribe = onSnapshot(q, snapshot => {
+			if (!snapshot.empty) {
+				const latestMediation = snapshot.docs[0].data();
+				setActiveMediation({ id: snapshot.docs[0].id, ...latestMediation });
+				setMode("mediator");
+			} else {
+				setActiveMediation(null);
+			}
+		});
+
+		return () => unsubscribe();
+	}, [room?.id, currentUser]);
 
 	const getNewConvoId = async () => {
 		const res = await fetch(SERVER_ENDPOINT);
@@ -31,7 +109,7 @@ export default function App() {
 
 	const resetChat = () => {
 		setMessages([]);
-		stopRef.current = true; // also stop any running stream
+		stopRef.current = true;
 		getNewConvoId();
 	};
 
@@ -39,9 +117,10 @@ export default function App() {
 		getNewConvoId();
 	}, []);
 
+	// Advice Mode Functions
 	const sendPrompt = async () => {
 		if (!input.trim() || !convoId) return;
-		stopRef.current = false; // reset stop flag
+		stopRef.current = false;
 
 		const userMsg = { id: Date.now().toString(), text: input, sender: "user" };
 		setMessages(prev => [userMsg, ...prev]);
@@ -86,63 +165,286 @@ export default function App() {
 		setOutputting(false);
 	};
 
+	// Mediator Mode Functions
+	const startMediation = async () => {
+		if (!mediatorPrompt.trim() || selectedMembers.length === 0 || !currentUser) {
+			alert("Please add a prompt and select at least one roommate");
+			return;
+		}
+
+		try {
+			const mediationData = {
+				prompt: mediatorPrompt,
+				participants: [currentUser.uid, ...selectedMembers],
+				responses: {},
+				status: "active",
+				createdAt: new Date(),
+				createdBy: currentUser.uid,
+			};
+
+			const docRef = await addDoc(collection(db, "rooms", room.id, "mediations"), mediationData);
+
+			setMediatorModalVisible(false);
+			setMediatorPrompt("");
+			setSelectedMembers([]);
+			setActiveMediation({ id: docRef.id, ...mediationData });
+		} catch (error) {
+			console.error("Error starting mediation:", error);
+			alert("Failed to start mediation");
+		}
+	};
+
+	const submitMediationResponse = async () => {
+		if (!input.trim() || !activeMediation) return;
+
+		try {
+			const mediationRef = doc(db, "rooms", room.id, "mediations", activeMediation.id);
+			await updateDoc(mediationRef, {
+				[`responses.${currentUser.uid}`]: {
+					text: input,
+					submittedAt: new Date(),
+				},
+			});
+
+			setInput("");
+			// Check if all participants have responded to trigger AI mediation
+			checkAllResponses();
+		} catch (error) {
+			console.error("Error submitting response:", error);
+		}
+	};
+
+	const checkAllResponses = async () => {
+		if (!activeMediation) return;
+
+		const allResponded = activeMediation.participants.every(
+			participant => activeMediation.responses && activeMediation.responses[participant],
+		);
+
+		if (allResponded) {
+			// Trigger AI mediation with all responses
+			await triggerAIMediation();
+		}
+	};
+
+	const triggerAIMediation = async () => {
+		if (!activeMediation) return;
+
+		const allResponses = Object.values(activeMediation.responses)
+			.map(r => r.text)
+			.join("\n");
+		const mediationPrompt = `As a mediator, help resolve this issue: ${activeMediation.prompt}\n\nRoommate responses:\n${allResponses}\n\nPlease provide balanced, constructive advice:`;
+
+		try {
+			const res = await fetch(SERVER_ENDPOINT, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ prompt: mediationPrompt, convoId }),
+			});
+			const data = await res.json();
+
+			const mediationRef = doc(db, "rooms", room.id, "mediations", activeMediation.id);
+			await updateDoc(mediationRef, {
+				aiResponse: data?.result,
+				status: "completed",
+				completedAt: new Date(),
+			});
+		} catch (error) {
+			console.error("Error getting AI mediation:", error);
+		}
+	};
+
+	const toggleMemberSelection = memberId => {
+		setSelectedMembers(prev =>
+			prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId],
+		);
+	};
+
 	const renderItem = ({ item }) => (
 		<View style={[styles.bubble, item.sender === "user" ? styles.userBubble : styles.botBubble]}>
 			<Text style={styles.bubbleText}>{item.text}</Text>
 		</View>
 	);
 
+	const renderMediationItem = ({ item }) => (
+		<View
+			style={[
+				styles.bubble,
+				item.sender === "user"
+					? styles.userBubble
+					: item.sender === "mediator"
+					? styles.mediatorBubble
+					: styles.botBubble,
+			]}
+		>
+			<Text style={styles.bubbleText}>{item.text}</Text>
+		</View>
+	);
+
 	return (
 		<SafeAreaView style={[styles.container, { paddingBottom: tabBarHeight + 10 }]}>
+			{/* Mode Toggle */}
+			<View style={styles.modeToggle}>
+				<TouchableOpacity
+					style={[styles.modeButton, mode === "advice" && styles.activeMode]}
+					onPress={() => setMode("advice")}
+				>
+					<Text style={[styles.modeText, mode === "advice" && styles.activeModeText]}>💡 Advice Mode</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.modeButton, mode === "mediator" && styles.activeMode]}
+					onPress={() => setMode("mediator")}
+				>
+					<Text style={[styles.modeText, mode === "mediator" && styles.activeModeText]}>
+						🤝 Mediator Mode
+					</Text>
+				</TouchableOpacity>
+			</View>
+
+			{/* Mediator Start Modal */}
+			<Modal visible={mediatorModalVisible} animationType="slide" transparent={true}>
+				<View style={styles.modalOverlay}>
+					<View style={styles.modalContent}>
+						<Text style={styles.modalTitle}>Start Mediation</Text>
+
+						<Text style={styles.label}>What's the issue?</Text>
+						<TextInput
+							style={styles.modalInput}
+							value={mediatorPrompt}
+							onChangeText={setMediatorPrompt}
+							placeholder="Describe what you've been struggling with..."
+							multiline
+							numberOfLines={4}
+						/>
+
+						<Text style={styles.label}>Select Roommates:</Text>
+						<ScrollView style={styles.memberList}>
+							{roomMembers
+								?.filter(member => member.uid !== currentUser?.uid)
+								.map(member => (
+									<TouchableOpacity
+										key={member.uid}
+										style={[
+											styles.memberItem,
+											selectedMembers.includes(member.uid) && styles.selectedMember,
+										]}
+										onPress={() => toggleMemberSelection(member.uid)}
+									>
+										<Text style={styles.memberText}>{member.name}</Text>
+										<Text style={styles.checkmark}>
+											{selectedMembers.includes(member.uid) ? "✅" : "⬜"}
+										</Text>
+									</TouchableOpacity>
+								))}
+						</ScrollView>
+
+						<View style={styles.modalButtons}>
+							<TouchableOpacity
+								style={[styles.modalButton, styles.cancelButton]}
+								onPress={() => setMediatorModalVisible(false)}
+							>
+								<Text style={styles.modalButtonText}>Cancel</Text>
+							</TouchableOpacity>
+							<TouchableOpacity style={[styles.modalButton, styles.startButton]} onPress={startMediation}>
+								<Text style={styles.modalButtonText}>Start Mediation</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
+
+			{/* Main Chat Area */}
 			<View style={styles.chatContainer}>
 				<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-					<FlatList style={styles.chat} data={messages} renderItem={renderItem} inverted />
+					{mode === "mediator" && !activeMediation && (
+						<View style={styles.mediationPrompt}>
+							<Text style={styles.mediationTitle}>🤝 Mediator Mode</Text>
+							<Text style={styles.mediationDescription}>
+								Start a private mediation with your roommates. Each person responds separately, then AI
+								helps find common ground.
+							</Text>
+							<TouchableOpacity
+								style={styles.startMediationButton}
+								onPress={() => setMediatorModalVisible(true)}
+							>
+								<Text style={styles.startMediationText}>Start New Mediation</Text>
+							</TouchableOpacity>
+						</View>
+					)}
+
+					{mode === "mediator" && activeMediation && (
+						<View style={styles.mediationHeader}>
+							<Text style={styles.mediationIssue}>Issue: {activeMediation.prompt}</Text>
+							<View style={styles.participantStatus}>
+								{activeMediation.participants?.map(participant => (
+									<View key={participant} style={styles.participant}>
+										<Text style={styles.participantName}>
+											{participant === currentUser?.uid ? "You" : "Roommate"}
+										</Text>
+										<Text
+											style={[
+												styles.statusIndicator,
+												activeMediation.responses?.[participant]
+													? styles.responded
+													: styles.pending,
+											]}
+										>
+											{activeMediation.responses?.[participant] ? "✅ Responded" : "⏳ Waiting"}
+										</Text>
+									</View>
+								))}
+							</View>
+						</View>
+					)}
+
+					<FlatList
+						style={styles.chat}
+						data={messages}
+						renderItem={mode === "advice" ? renderItem : renderMediationItem}
+						inverted
+					/>
 
 					<View style={styles.inputContainer}>
-						{!outputting && (
-							<TouchableOpacity
-								onPress={resetChat}
-								style={{
-									backgroundColor: "blue",
-									padding: 10,
-									borderRadius: 8,
-									alignItems: "center",
-								}}
-							>
-								<Text style={{ color: "white", fontWeight: "bold" }}>Reset</Text>
+						{mode === "advice" && !outputting && (
+							<TouchableOpacity onPress={resetChat} style={styles.actionButton}>
+								<Text style={styles.actionButtonText}>Reset</Text>
 							</TouchableOpacity>
 						)}
+
 						<TextInput
 							style={styles.input}
 							value={input}
 							onChangeText={setInput}
-							placeholder="Say something..."
+							placeholder={
+								mode === "advice"
+									? "Ask for advice..."
+									: activeMediation
+									? "Share your perspective..."
+									: "Switch to mediator mode to start..."
+							}
+							editable={!(mode === "mediator" && !activeMediation)}
 						/>
 
-						{outputting ? (
-							<TouchableOpacity
-								onPress={() => (stopRef.current = true)}
-								style={{
-									backgroundColor: "red",
-									padding: 10,
-									borderRadius: 8,
-									alignItems: "center",
-								}}
-							>
-								<Text style={{ color: "white", fontWeight: "bold" }}>Stop</Text>
-							</TouchableOpacity>
+						{mode === "advice" ? (
+							outputting ? (
+								<TouchableOpacity
+									onPress={() => (stopRef.current = true)}
+									style={[styles.actionButton, styles.stopButton]}
+								>
+									<Text style={styles.actionButtonText}>Stop</Text>
+								</TouchableOpacity>
+							) : (
+								<TouchableOpacity onPress={sendPrompt} style={styles.actionButton}>
+									<Text style={styles.actionButtonText}>Send</Text>
+								</TouchableOpacity>
+							)
 						) : (
-							<TouchableOpacity
-								onPress={sendPrompt}
-								style={{
-									backgroundColor: "blue",
-									padding: 10,
-									borderRadius: 8,
-									alignItems: "center",
-								}}
-							>
-								<Text style={{ color: "white", fontWeight: "bold" }}>Send</Text>
-							</TouchableOpacity>
+							activeMediation &&
+							!activeMediation.responses?.[currentUser?.uid] && (
+								<TouchableOpacity onPress={submitMediationResponse} style={styles.actionButton}>
+									<Text style={styles.actionButtonText}>Submit</Text>
+								</TouchableOpacity>
+							)
 						)}
 					</View>
 				</KeyboardAvoidingView>
@@ -152,20 +454,231 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, backgroundColor: "#FFF8E1" },
+	container: { flex: 1, backgroundColor: "#FFF9C4" },
+	modeToggle: {
+		flexDirection: "row",
+		margin: 12,
+		backgroundColor: "#FFFFFF",
+		borderRadius: 12,
+		padding: 4,
+		elevation: 2,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 1 },
+		shadowOpacity: 0.1,
+		shadowRadius: 3,
+	},
+	modeButton: {
+		flex: 1,
+		paddingVertical: 12,
+		alignItems: "center",
+		borderRadius: 8,
+	},
+	activeMode: {
+		backgroundColor: "#FFD166",
+	},
+	modeText: {
+		fontSize: 14,
+		fontWeight: "500",
+		color: "#666",
+	},
+	activeModeText: {
+		color: "#D84315",
+		fontWeight: "600",
+	},
 	chatContainer: {
 		flex: 1,
-		margin: 12,
+		marginHorizontal: 12,
+		marginBottom: 12,
 		borderRadius: 12,
 		borderWidth: 1,
-		borderColor: "#ccc",
+		borderColor: "#FFCCBC",
 		backgroundColor: "#fff",
 	},
 	chat: { flex: 1, padding: 10 },
-	bubble: { maxWidth: "80%", marginVertical: 4, padding: 10, borderRadius: 10 },
-	userBubble: { alignSelf: "flex-end", backgroundColor: "#007aff" },
-	botBubble: { alignSelf: "flex-start", backgroundColor: "#ececec" },
+	bubble: { maxWidth: "80%", marginVertical: 4, padding: 12, borderRadius: 12 },
+	userBubble: { alignSelf: "flex-end", backgroundColor: "#FF9800" },
+	botBubble: { alignSelf: "flex-start", backgroundColor: "#FFF3E0" },
+	mediatorBubble: { alignSelf: "center", backgroundColor: "#C8E6C9" },
 	bubbleText: { color: "#000" },
-	inputContainer: { flexDirection: "row", padding: 10, borderTopWidth: 1, borderColor: "#ccc", gap: 8 },
-	input: { flex: 1, borderWidth: 1, borderColor: "#ccc", borderRadius: 5, padding: 10 },
+	inputContainer: {
+		flexDirection: "row",
+		padding: 12,
+		borderTopWidth: 1,
+		borderColor: "#FFCCBC",
+		gap: 8,
+	},
+	input: {
+		flex: 1,
+		borderWidth: 1,
+		borderColor: "#FFCCBC",
+		borderRadius: 8,
+		padding: 12,
+		backgroundColor: "#FFF8E1",
+	},
+	actionButton: {
+		backgroundColor: "#FF9800",
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		borderRadius: 8,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	stopButton: {
+		backgroundColor: "#EF5350",
+	},
+	actionButtonText: {
+		color: "white",
+		fontWeight: "600",
+	},
+	// Mediation Styles
+	mediationPrompt: {
+		padding: 20,
+		alignItems: "center",
+		justifyContent: "center",
+		flex: 1,
+	},
+	mediationTitle: {
+		fontSize: 24,
+		fontWeight: "bold",
+		color: "#D84315",
+		marginBottom: 12,
+	},
+	mediationDescription: {
+		fontSize: 16,
+		color: "#666",
+		textAlign: "center",
+		marginBottom: 24,
+		lineHeight: 22,
+	},
+	startMediationButton: {
+		backgroundColor: "#4CAF50",
+		paddingHorizontal: 24,
+		paddingVertical: 16,
+		borderRadius: 12,
+	},
+	startMediationText: {
+		color: "white",
+		fontSize: 16,
+		fontWeight: "600",
+	},
+	mediationHeader: {
+		padding: 16,
+		borderBottomWidth: 1,
+		borderBottomColor: "#FFCCBC",
+		backgroundColor: "#FFF8E1",
+	},
+	mediationIssue: {
+		fontSize: 16,
+		fontWeight: "600",
+		color: "#D84315",
+		marginBottom: 12,
+	},
+	participantStatus: {
+		flexDirection: "row",
+		justifyContent: "space-around",
+	},
+	participant: {
+		alignItems: "center",
+	},
+	participantName: {
+		fontSize: 14,
+		fontWeight: "500",
+		marginBottom: 4,
+	},
+	statusIndicator: {
+		fontSize: 12,
+		fontWeight: "500",
+	},
+	responded: {
+		color: "#4CAF50",
+	},
+	pending: {
+		color: "#FF9800",
+	},
+	// Modal Styles
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.5)",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	modalContent: {
+		backgroundColor: "white",
+		borderRadius: 16,
+		padding: 24,
+		margin: 20,
+		width: "90%",
+		maxHeight: "80%",
+	},
+	modalTitle: {
+		fontSize: 20,
+		fontWeight: "bold",
+		color: "#D84315",
+		marginBottom: 20,
+		textAlign: "center",
+	},
+	label: {
+		fontSize: 16,
+		fontWeight: "500",
+		color: "#333",
+		marginBottom: 8,
+		marginTop: 12,
+	},
+	modalInput: {
+		borderWidth: 1,
+		borderColor: "#FFCCBC",
+		borderRadius: 8,
+		padding: 12,
+		backgroundColor: "#FFF8E1",
+		textAlignVertical: "top",
+		minHeight: 100,
+	},
+	memberList: {
+		maxHeight: 150,
+		marginBottom: 20,
+	},
+	memberItem: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		padding: 12,
+		borderWidth: 1,
+		borderColor: "#FFCCBC",
+		borderRadius: 8,
+		marginBottom: 8,
+		backgroundColor: "#FFF8E1",
+	},
+	selectedMember: {
+		backgroundColor: "#FFE0B2",
+		borderColor: "#FF9800",
+	},
+	memberText: {
+		fontSize: 14,
+		fontWeight: "500",
+	},
+	checkmark: {
+		fontSize: 16,
+	},
+	modalButtons: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		gap: 12,
+	},
+	modalButton: {
+		flex: 1,
+		paddingVertical: 14,
+		borderRadius: 8,
+		alignItems: "center",
+	},
+	cancelButton: {
+		backgroundColor: "#9E9E9E",
+	},
+	startButton: {
+		backgroundColor: "#4CAF50",
+	},
+	modalButtonText: {
+		color: "white",
+		fontWeight: "600",
+		fontSize: 16,
+	},
 });
