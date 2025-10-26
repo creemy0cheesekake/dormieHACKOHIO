@@ -359,8 +359,8 @@ export default function App() {
 						item.sender === "user"
 							? styles.userBubble
 							: item.sender === "mediator"
-								? styles.mediatorBubble
-								: styles.botBubble,
+							? styles.mediatorBubble
+							: styles.botBubble,
 					]}
 				>
 					<Text style={styles.bubbleText}>{item.text}</Text>
@@ -505,7 +505,7 @@ export default function App() {
 							onChangeText={setInput}
 							placeholder={mode === "advice" ? "Ask for advice..." : "Share your perspective..."}
 						/>
-						{mediationReceiver && (
+						{mediationReceiver && mode !== "advice" && (
 							<TouchableOpacity
 								onPress={sendMediationResponse}
 								style={[styles.actionButton, outputting && { backgroundColor: "#ccc" }]}
