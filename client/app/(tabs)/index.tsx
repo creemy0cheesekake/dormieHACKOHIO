@@ -14,6 +14,8 @@ import {
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { auth, db } from "../../firebaseConfig";
 
+//hi
+
 function toDateString(ts: any) {
 	if (!ts) return "never";
 	if (ts.toDate && typeof ts.toDate === "function") return ts.toDate().toLocaleString();
